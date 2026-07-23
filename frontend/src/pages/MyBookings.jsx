@@ -1,138 +1,103 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Plus, Calendar, MapPin, ClipboardList } from 'lucide-react';
 import { getMyBookings } from '../services/api';
+import DashboardLayout from '../components/DashboardLayout';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { roomImage } from '../data/assets';
+
+const statusClass = (s) => ({ active: 'badge-active', confirmed: 'badge-active', pending: 'badge-pending', cancelled: 'badge-cancelled', completed: 'badge-completed' }[s] || 'badge-pending');
 
 const MyBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [active, setActive] = useState('all');
 
   useEffect(() => {
-    const fetchBookings = async () => {
+    (async () => {
       try {
         const response = await getMyBookings();
         const fetched = response.data.bookings || response.data;
         setBookings(Array.isArray(fetched) ? fetched : []);
       } catch (error) {
         console.error('Failed to fetch bookings:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchBookings();
+      } finally { setLoading(false); }
+    })();
   }, []);
 
-  const getStatusClass = (status) => {
-    const classes = {
-      active: 'badge-active',
-      confirmed: 'badge-active',
-      pending: 'badge-pending',
-      cancelled: 'badge-cancelled',
-      completed: 'badge-completed',
-    };
-    return classes[status] || 'badge-pending';
-  };
-
-  const filteredBookings = bookings.filter((booking) => {
-    if (activeFilter === 'all') return true;
-    if (activeFilter === 'active') return booking.status === 'active' || booking.status === 'confirmed';
-    return booking.status === activeFilter;
+  const filtered = bookings.filter((b) => {
+    if (active === 'all') return true;
+    if (active === 'active') return b.status === 'active' || b.status === 'confirmed';
+    return b.status === active;
   });
 
-  const filterTabs = [
+  const tabs = [
     { key: 'all', label: 'All' },
     { key: 'active', label: 'Active' },
     { key: 'completed', label: 'Completed' },
     { key: 'cancelled', label: 'Cancelled' },
   ];
+  const countFor = (k) => k === 'all' ? bookings.length : k === 'active'
+    ? bookings.filter((b) => b.status === 'active' || b.status === 'confirmed').length
+    : bookings.filter((b) => b.status === k).length;
 
-  if (loading) return <LoadingSpinner fullScreen />;
+  if (loading) return <DashboardLayout><LoadingSpinner fullScreen /></DashboardLayout>;
 
   return (
-    <div className="page-container">
-      <div className="container">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title" id="bookings-title">
-              My <span className="gradient-text">Bookings</span>
-            </h1>
-            <p className="page-subtitle">Manage all your storage reservations</p>
-          </div>
-          <Link to="/storage" className="btn btn-primary" id="new-booking-btn">
-            New Booking
-            <span className="btn-icon">+</span>
-          </Link>
+    <DashboardLayout>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">My <span className="gradient-text">Bookings</span></h1>
+          <p className="page-subtitle">Manage all your storage reservations.</p>
         </div>
+        <Link to="/storage" className="btn btn-primary"><Plus size={18} /> New Booking</Link>
+      </div>
 
-        {/* Filter Tabs */}
-        <div className="filter-tabs" id="booking-filters">
-          {filterTabs.map((tab) => (
-            <button
-              key={tab.key}
-              className={`filter-tab ${activeFilter === tab.key ? 'active' : ''}`}
-              onClick={() => setActiveFilter(tab.key)}
-              id={`filter-${tab.key}`}
-            >
-              {tab.label}
-              <span className="filter-count">
-                {tab.key === 'all'
-                  ? bookings.length
-                  : tab.key === 'active'
-                  ? bookings.filter(b => b.status === 'active' || b.status === 'confirmed').length
-                  : bookings.filter(b => b.status === tab.key).length}
-              </span>
-            </button>
-          ))}
+      <div className="tabs" style={{ marginBottom: 22 }}>
+        {tabs.map((t) => (
+          <button key={t.key} className={`tab${active === t.key ? ' active' : ''}`} onClick={() => setActive(t.key)}>
+            {t.label} <span className="tab-count">{countFor(t.key)}</span>
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon"><ClipboardList /></div>
+          <h3>No {active !== 'all' ? active : ''} bookings found</h3>
+          <p>Your bookings will appear here once you make a reservation.</p>
+          <Link to="/storage" className="btn btn-primary">Browse Storage</Link>
         </div>
-
-        {/* Bookings List */}
-        {filteredBookings.length === 0 ? (
-          <div className="empty-state" id="no-filtered-bookings">
-            <div className="empty-icon">📋</div>
-            <h3>No {activeFilter !== 'all' ? activeFilter : ''} bookings found</h3>
-            <p>Your bookings will appear here once you make a reservation</p>
-            <Link to="/storage" className="btn btn-primary">Browse Storage</Link>
-          </div>
-        ) : (
-          <div className="bookings-card-grid" id="bookings-grid">
-            {filteredBookings.map((booking) => (
-              <Link
-                to={`/bookings/${booking.id}`}
-                key={booking.id}
-                className="booking-card"
-                id={`booking-card-${booking.id}`}
-              >
-                <div className="booking-card-header">
-                  <span className="booking-card-unit">
-                    {booking.storage_units?.unit_number || booking.storage_unit?.unit_number || `Unit #${booking.storage_unit_id}`}
-                  </span>
-                  <span className={`badge ${getStatusClass(booking.status)}`}>
-                    {booking.status}
-                  </span>
-                </div>
-                <div className="booking-card-body">
-                  <div className="booking-card-detail">
-                    <span className="booking-card-detail-icon">📅</span>
-                    <span>{new Date(booking.start_date).toLocaleDateString()} — {new Date(booking.end_date).toLocaleDateString()}</span>
-                  </div>
-                  {(booking.storage_units?.location || booking.storage_unit?.location) && (
-                    <div className="booking-card-detail">
-                      <span className="booking-card-detail-icon">📍</span>
-                      <span>{booking.storage_units?.location || booking.storage_unit?.location}</span>
+      ) : (
+        <div className="storage-list">
+          {filtered.map((b) => {
+            const unitName = b.storage_units?.unit_number || b.storage_unit?.unit_number || `Unit #${b.storage_unit_id}`;
+            const loc = b.storage_units?.location || b.storage_unit?.location;
+            return (
+              <Link to={`/bookings/${b.id}`} key={b.id} className="storage-card" style={{ display: 'grid' }}>
+                <div className="storage-thumb"><img src={roomImage(b.storage_unit_id || b.id)} alt={unitName} /></div>
+                <div className="storage-body">
+                  <div className="storage-body-top">
+                    <div>
+                      <h3 className="storage-name">{unitName}</h3>
+                      <div className="storage-meta"><Calendar /> {new Date(b.start_date).toLocaleDateString()} — {new Date(b.end_date).toLocaleDateString()}</div>
+                      {loc && <div className="storage-meta"><MapPin /> {loc}</div>}
                     </div>
-                  )}
-                </div>
-                <div className="booking-card-footer">
-                  <span className="booking-card-price">${booking.total_price || '—'}</span>
-                  <span className="booking-card-link">View Details →</span>
+                    <div style={{ textAlign: 'right' }}>
+                      <span className={`badge ${statusClass(b.status)}`}>{b.status}</span>
+                      <div className="storage-price" style={{ marginTop: 12 }}>
+                        <div className="amt">KSh {b.total_price || '—'}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="storage-amenities"><span className="dash-card-link">View details →</span></div>
                 </div>
               </Link>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+            );
+          })}
+        </div>
+      )}
+    </DashboardLayout>
   );
 };
 

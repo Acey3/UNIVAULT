@@ -13,7 +13,7 @@ const { supabase, supabaseAdmin } = require("../supabaseClient");
  */
 const register = async (req, res) => {
   try {
-    const { email, password, fullName, registrationNumber } = req.body;
+    const { email, password, fullName, registrationNumber, role } = req.body;
 
     // ---------- Validation ----------
     if (!email || !password || !fullName || !registrationNumber) {
@@ -21,6 +21,9 @@ const register = async (req, res) => {
         error: "All fields are required (email, password, fullName, registrationNumber)",
       });
     }
+
+    // Only students and landlords can self-register (admins are set manually).
+    const accountRole = role === "landlord" ? "landlord" : "student";
 
     if (password.length < 6) {
       return res.status(400).json({
@@ -36,6 +39,7 @@ const register = async (req, res) => {
         data: {
           full_name: fullName,
           registration_number: registrationNumber,
+          role: accountRole,
         },
       },
     });
@@ -49,12 +53,30 @@ const register = async (req, res) => {
     // the public client otherwise.
     const dbClient = supabaseAdmin || supabase;
 
-    const { error: profileError } = await dbClient.from("profiles").insert({
+    const profileRow = {
       id: authData.user.id,          // references auth.users.id
       email: email,
       full_name: fullName,
       registration_number: registrationNumber,
-    });
+      role: accountRole,
+    };
+
+    // Upsert (not insert): Supabase auto-creates a profile row via a trigger
+    // on signup, so a plain insert would collide on the primary key. Upsert
+    // reconciles our fields (full_name, registration_number, role) either way.
+    let { error: profileError } = await dbClient
+      .from("profiles")
+      .upsert(profileRow, { onConflict: "id" });
+
+    // If the DB's role CHECK constraint doesn't allow 'landlord' yet
+    // (migration 001 not run), retry as 'student' so the account still works.
+    let roleDowngraded = false;
+    if (profileError && profileError.code === "23514" && accountRole !== "student") {
+      roleDowngraded = true;
+      ({ error: profileError } = await dbClient
+        .from("profiles")
+        .upsert({ ...profileRow, role: "student" }, { onConflict: "id" }));
+    }
 
     if (profileError) {
       console.error("Profile insert error:", profileError.message);
@@ -69,6 +91,7 @@ const register = async (req, res) => {
     }
 
     // ---------- Success ----------
+    const effectiveRole = roleDowngraded ? "student" : accountRole;
     return res.status(201).json({
       message: "User registered successfully",
       user: authData.user,
@@ -78,8 +101,12 @@ const register = async (req, res) => {
         email: email,
         full_name: fullName,
         registration_number: registrationNumber,
-        role: "student"
-      }
+        role: effectiveRole
+      },
+      ...(roleDowngraded && {
+        warning:
+          "Registered as student — the 'landlord' role requires migration 001_landlord_id.sql to be run in Supabase.",
+      }),
     });
   } catch (err) {
     console.error("Register error:", err);

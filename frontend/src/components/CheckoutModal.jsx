@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Smartphone, Check } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 
 const CheckoutModal = ({ isOpen, onClose, onSuccess, amount }) => {
@@ -51,7 +52,7 @@ const CheckoutModal = ({ isOpen, onClose, onSuccess, amount }) => {
             <div className="form-group">
               <label>M-Pesa Phone Number</label>
               <div className="mpesa-input-wrapper">
-                <span className="mpesa-prefix">📞</span>
+                <span className="mpesa-prefix"><Smartphone size={16} /></span>
                 <input
                   type="text"
                   value={phoneNumber}
@@ -82,7 +83,7 @@ const CheckoutModal = ({ isOpen, onClose, onSuccess, amount }) => {
 
         {status === 'success' && (
           <div className="mpesa-success">
-            <div className="success-checkmark">✓</div>
+            <div className="success-checkmark"><Check size={30} /></div>
             <h3>Payment Received!</h3>
             <p>Transaction successful. Finalizing your booking...</p>
           </div>

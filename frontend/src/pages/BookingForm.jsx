@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, AlertTriangle, MapPin } from 'lucide-react';
 import { getStorageUnit, createBooking } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CheckoutModal from '../components/CheckoutModal';
+import { roomImage, DEMO_UNITS } from '../data/assets';
+
+const STEPS = ['Select Dates', 'Confirm Details', 'Payment'];
 
 const BookingForm = () => {
   const [searchParams] = useSearchParams();
@@ -14,17 +18,18 @@ const BookingForm = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    start_date: '',
-    end_date: '',
-    notes: '',
-  });
+  const [formData, setFormData] = useState({ start_date: '', end_date: '', notes: '' });
   const [calculatedPrice, setCalculatedPrice] = useState(0);
+  const [months, setMonths] = useState(0);
+
+  const isDemo = String(unitId).startsWith('demo');
 
   useEffect(() => {
     const fetchUnit = async () => {
-      if (!unitId) {
-        setError('No storage unit selected. Please select a unit first.');
+      if (!unitId) { setError('No storage unit selected. Please select a unit first.'); setLoading(false); return; }
+      if (isDemo) {
+        const found = DEMO_UNITS.find((u) => u.id === unitId);
+        setUnit(found || null);
         setLoading(false);
         return;
       }
@@ -34,58 +39,42 @@ const BookingForm = () => {
       } catch (err) {
         setError('Failed to load unit details.');
         console.error(err);
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     };
     fetchUnit();
-  }, [unitId]);
+  }, [unitId, isDemo]);
 
   useEffect(() => {
     if (unit && formData.start_date && formData.end_date) {
       const start = new Date(formData.start_date);
       const end = new Date(formData.end_date);
-      const diffTime = end - start;
-      const diffMonths = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30)));
-      const pricePerMonth = unit.price_per_month || unit.price || 0;
-      setCalculatedPrice(diffMonths > 0 ? diffMonths * pricePerMonth : 0);
-    } else {
-      setCalculatedPrice(0);
-    }
+      const diffMonths = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24 * 30)));
+      const rate = unit.price_per_month || unit.price || 0;
+      setMonths(diffMonths);
+      setCalculatedPrice(diffMonths * rate);
+    } else { setMonths(0); setCalculatedPrice(0); }
   }, [formData.start_date, formData.end_date, unit]);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  const currentStep = !formData.start_date || !formData.end_date ? 0 : 1;
+  const serviceFee = calculatedPrice ? 180 : 0;
+  const total = calculatedPrice + serviceFee;
 
   const handleInitialSubmit = (e) => {
     e.preventDefault();
     setError('');
-
-    if (!formData.start_date || !formData.end_date) {
-      setError('Please select both start and end dates.');
-      return;
-    }
-
-    if (new Date(formData.end_date) <= new Date(formData.start_date)) {
-      setError('End date must be after start date.');
-      return;
-    }
-
+    if (!formData.start_date || !formData.end_date) { setError('Please select both drop-off and pick-up dates.'); return; }
+    if (new Date(formData.end_date) <= new Date(formData.start_date)) { setError('Pick-up date must be after drop-off date.'); return; }
     setIsModalOpen(true);
   };
 
   const handleFinalBookingSubmit = async () => {
     setSubmitting(true);
     setIsModalOpen(false);
-
+    if (isDemo) { setTimeout(() => navigate('/bookings'), 300); return; }
     try {
-      const response = await createBooking({
-        storage_unit_id: unitId,
-        start_date: formData.start_date,
-        end_date: formData.end_date,
-        notes: formData.notes,
-      });
+      await createBooking({ storage_unit_id: unitId, start_date: formData.start_date, end_date: formData.end_date, notes: formData.notes });
       navigate('/bookings');
     } catch (err) {
       setError(err.response?.data?.error || err.response?.data?.message || 'Failed to create booking. Please try again.');
@@ -93,141 +82,117 @@ const BookingForm = () => {
     }
   };
 
-  if (loading) return <LoadingSpinner fullScreen />;
+  if (loading) return <div className="page"><LoadingSpinner fullScreen /></div>;
 
   if (error && !unit) {
     return (
-      <div className="page-container">
-        <div className="container">
-          <div className="empty-state">
-            <div className="empty-icon">⚠️</div>
-            <h3>{error}</h3>
-            <button className="btn btn-primary" onClick={() => navigate('/storage')}>Browse Storage</button>
-          </div>
+      <div className="page">
+        <div className="empty-state">
+          <div className="empty-icon"><AlertTriangle /></div>
+          <h3>{error}</h3>
+          <button className="btn btn-primary" onClick={() => navigate('/storage')}>Browse Storage</button>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="page-container">
-      <div className="container">
-        <button className="back-link" onClick={() => navigate(-1)} id="back-from-booking">
-          ← Back
-        </button>
+  const name = unit?.unit_number || `Unit #${unitId}`;
+  const rate = unit?.price_per_month || unit?.price || '—';
 
-        <div className="page-header">
-          <h1 className="page-title" id="booking-form-title">
-            Book <span className="gradient-text">{unit?.unit_number || `Unit #${unitId}`}</span>
-          </h1>
-          <p className="page-subtitle">Complete the form below to reserve your storage unit</p>
+  return (
+    <div className="page">
+      <button className="back-link" onClick={() => navigate(-1)}><ArrowLeft /> Back</button>
+
+      <div className="booking-head">
+        <div className="page-header" style={{ marginBottom: 22 }}>
+          <div>
+            <h1 className="page-title">Book Storage</h1>
+            <p className="page-subtitle">Reserve <strong>{name}</strong> in a few steps.</p>
+          </div>
+          <div className="stepper">
+            {STEPS.map((label, i) => (
+              <div className="step" key={label} style={{ display: 'flex' }}>
+                <div className={`step ${i < currentStep ? 'done' : ''} ${i === currentStep ? 'active' : ''}`}>
+                  <span className="step-dot">{i + 1}</span>
+                  <span className="step-label">{label}</span>
+                </div>
+                {i < STEPS.length - 1 && <span className={`step-line ${i < currentStep ? 'done' : ''}`} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="detail-grid">
+        {/* Left: your booking + dates */}
+        <div>
+          <div className="detail-card">
+            <h3 className="detail-section-title" style={{ marginBottom: 14 }}>Your Booking</h3>
+            <div className="selected-property">
+              <img src={roomImage(unit?.id || 0)} alt={name} />
+              <div>
+                <h4>{name}</h4>
+                <span>{unit?.location || 'Juja'}</span>
+                <span className="amt">KSh {rate} /month</span>
+              </div>
+            </div>
+
+            {error && <div className="alert alert-error"><AlertTriangle /> {error}</div>}
+
+            <form onSubmit={handleInitialSubmit}>
+              <h3 className="detail-section-title" style={{ marginBottom: 14 }}>Select Dates</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Drop off date</label>
+                  <input type="date" name="start_date" className="form-input" value={formData.start_date}
+                    onChange={handleChange} min={new Date().toISOString().split('T')[0]} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Pick up date</label>
+                  <input type="date" name="end_date" className="form-input" value={formData.end_date}
+                    onChange={handleChange} min={formData.start_date || new Date().toISOString().split('T')[0]} required />
+                </div>
+              </div>
+              <p className="date-note">You can cancel for free up to 24 hours before drop-off.</p>
+
+              <div className="form-group" style={{ marginTop: 8 }}>
+                <label className="form-label">Notes (optional)</label>
+                <textarea name="notes" className="form-textarea" placeholder="Any special instructions..."
+                  value={formData.notes} onChange={handleChange} />
+              </div>
+
+              <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={submitting}>
+                {submitting ? 'Processing...' : 'Continue to payment'}
+              </button>
+            </form>
+          </div>
         </div>
 
-        <div className="detail-grid">
-          <div className="detail-main">
-            <div className="detail-card">
-              {error && (
-                <div className="alert alert-error" id="booking-error">
-                  <span className="alert-icon">⚠️</span>
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={handleInitialSubmit} className="booking-form" id="booking-form">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="start_date" className="form-label">Start Date</label>
-                    <input
-                      type="date"
-                      id="start_date"
-                      name="start_date"
-                      className="form-input"
-                      value={formData.start_date}
-                      onChange={handleChange}
-                      min={new Date().toISOString().split('T')[0]}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="end_date" className="form-label">End Date</label>
-                    <input
-                      type="date"
-                      id="end_date"
-                      name="end_date"
-                      className="form-input"
-                      value={formData.end_date}
-                      onChange={handleChange}
-                      min={formData.start_date || new Date().toISOString().split('T')[0]}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="notes" className="form-label">Notes (Optional)</label>
-                  <textarea
-                    id="notes"
-                    name="notes"
-                    className="form-input form-textarea"
-                    placeholder="Any special instructions or notes..."
-                    value={formData.notes}
-                    onChange={handleChange}
-                    rows={4}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="btn btn-primary btn-full"
-                  id="submit-booking"
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <span className="btn-loading">Creating Booking...</span>
-                  ) : (
-                    'Confirm & Pay KES ' + calculatedPrice.toFixed(2)
-                  )}
-                </button>
-              </form>
-            </div>
-          </div>
-
-          <div className="detail-sidebar">
-            <div className="sidebar-card">
-              <h3 className="sidebar-title">Booking Summary</h3>
-              <div className="summary-items">
-                <div className="summary-item">
-                  <span className="summary-label">Unit</span>
-                  <span className="summary-value">{unit?.unit_number || `#${unitId}`}</span>
-                </div>
-                <div className="summary-item">
-                  <span className="summary-label">Size</span>
-                  <span className="summary-value">{unit?.size || 'N/A'}</span>
-                </div>
-                <div className="summary-item">
-                  <span className="summary-label">Location</span>
-                  <span className="summary-value">{unit?.location || 'N/A'}</span>
-                </div>
-                <div className="summary-item">
-                  <span className="summary-label">Monthly Rate</span>
-                  <span className="summary-value">KES {unit?.price_per_month || unit?.price || '—'}</span>
-                </div>
-                <div className="summary-divider"></div>
-                <div className="summary-item summary-total">
-                  <span className="summary-label">Estimated Total</span>
-                  <span className="summary-value">KES {calculatedPrice.toFixed(2)}</span>
-                </div>
+        {/* Right: price summary */}
+        <div>
+          <div className="book-card">
+            <h3 className="sidebar-title">Price Summary</h3>
+            <div className="summary-items" style={{ marginTop: 12 }}>
+              <div className="summary-item">
+                <span className="summary-label">{months ? `${months} month${months > 1 ? 's' : ''}` : 'Monthly rate'}</span>
+                <span className="summary-value">KSh {calculatedPrice ? calculatedPrice.toLocaleString() : rate}</span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Service fee</span>
+                <span className="summary-value">KSh {serviceFee}</span>
+              </div>
+              <div className="summary-divider" />
+              <div className="summary-item summary-total">
+                <span className="summary-label">Total</span>
+                <span className="summary-value">KSh {total ? total.toLocaleString() : '—'}</span>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <CheckoutModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSuccess={handleFinalBookingSubmit}
-        amount={calculatedPrice}
-      />
+
+      <CheckoutModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}
+        onSuccess={handleFinalBookingSubmit} amount={total} />
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ShieldCheck, Wallet, Package, CheckCircle2, Users, Store, TrendingUp, ClipboardList } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getAdminStats, getAdminBookings, getAdminUsers, getAdminUnits, updateBookingStatus } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -64,10 +65,10 @@ const AdminDashboard = () => {
   if (loading) return <LoadingSpinner fullScreen />;
 
   const tabs = [
-    { key: 'overview', label: '📊 Overview' },
-    { key: 'bookings', label: '📋 Bookings' },
-    { key: 'users', label: '👥 Users' },
-    { key: 'units', label: '🏪 Units' },
+    { key: 'overview', label: 'Overview' },
+    { key: 'bookings', label: 'Bookings' },
+    { key: 'users', label: 'Users' },
+    { key: 'units', label: 'Units' },
   ];
 
   return (
@@ -81,7 +82,7 @@ const AdminDashboard = () => {
               </h1>
               <p className="page-subtitle">Welcome back, {user?.full_name}. Here's your UNIVAULT overview.</p>
             </div>
-            <span className="admin-role-badge">🛡️ Administrator</span>
+            <span className="admin-role-badge"><ShieldCheck size={15} /> Administrator</span>
           </div>
         </div>
 
@@ -104,42 +105,42 @@ const AdminDashboard = () => {
           <div className="admin-section">
             <div className="admin-stats-grid">
               <div className="admin-stat-card admin-stat-revenue" id="stat-revenue">
-                <div className="admin-stat-icon">💰</div>
+                <div className="admin-stat-icon"><Wallet size={22} /></div>
                 <div className="admin-stat-info">
                   <span className="admin-stat-label">Total Revenue</span>
                   <span className="admin-stat-value">KES {parseFloat(stats.totalRevenue).toLocaleString()}</span>
                 </div>
               </div>
               <div className="admin-stat-card admin-stat-bookings" id="stat-bookings">
-                <div className="admin-stat-icon">📦</div>
+                <div className="admin-stat-icon"><Package size={22} /></div>
                 <div className="admin-stat-info">
                   <span className="admin-stat-label">Total Bookings</span>
                   <span className="admin-stat-value">{stats.totalBookings}</span>
                 </div>
               </div>
               <div className="admin-stat-card admin-stat-active" id="stat-active">
-                <div className="admin-stat-icon">✅</div>
+                <div className="admin-stat-icon"><CheckCircle2 size={22} /></div>
                 <div className="admin-stat-info">
                   <span className="admin-stat-label">Active Bookings</span>
                   <span className="admin-stat-value">{stats.activeBookings}</span>
                 </div>
               </div>
               <div className="admin-stat-card admin-stat-users" id="stat-users">
-                <div className="admin-stat-icon">👥</div>
+                <div className="admin-stat-icon"><Users size={22} /></div>
                 <div className="admin-stat-info">
                   <span className="admin-stat-label">Registered Users</span>
                   <span className="admin-stat-value">{stats.totalUsers}</span>
                 </div>
               </div>
               <div className="admin-stat-card admin-stat-units" id="stat-units">
-                <div className="admin-stat-icon">🏪</div>
+                <div className="admin-stat-icon"><Store size={22} /></div>
                 <div className="admin-stat-info">
                   <span className="admin-stat-label">Total Units</span>
                   <span className="admin-stat-value">{stats.totalUnits}</span>
                 </div>
               </div>
               <div className="admin-stat-card admin-stat-occupancy" id="stat-occupancy">
-                <div className="admin-stat-icon">📈</div>
+                <div className="admin-stat-icon"><TrendingUp size={22} /></div>
                 <div className="admin-stat-info">
                   <span className="admin-stat-label">Occupancy Rate</span>
                   <span className="admin-stat-value">{stats.occupancyRate}%</span>
@@ -239,7 +240,7 @@ const AdminDashboard = () => {
               </div>
               {bookings.length === 0 && (
                 <div className="empty-state">
-                  <div className="empty-icon">📋</div>
+                  <div className="empty-icon"><ClipboardList /></div>
                   <h3>No bookings yet</h3>
                 </div>
               )}
