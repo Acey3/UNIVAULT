@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  // Use the local network IP explicitly for the native mobile app
+  baseURL: 'http://192.168.100.35:5000/api',
 });
 
 API.interceptors.request.use((config) => {
